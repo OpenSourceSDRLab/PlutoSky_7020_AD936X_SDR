@@ -1,0 +1,1174 @@
+--- a/linux/arch/arm/boot/dts/zynq-pluto-sdr.dts
++++ b/linux/arch/arm/boot/dts/zynq-pluto-sdr.dts
+@@ -13,24 +13,28 @@
+  */
+ /dts-v1/;
+ #include "zynq-pluto-sdr.dtsi"
++#include <dt-bindings/input/input.h>
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/interrupt-controller/irq.h>
+ 
+-
+-&axi_i2c0 {
+-	current_limiter@5a {
+-		compatible = "adi,adm1177-iio";
+-		reg = <0x5a>;
+-		adi,r-sense-mohm = <50>; /* 50 mOhm */
+-		adi,shutdown-threshold-ma = <1059>; /* 1.059 A */
+-		adi,vrange-high-enable;
+-	};
++&adc0_ad9364 {
++	/* This property is controlled by u-boot environment. */
++	adi,2rx-2tx-mode-enable;
+ };
+ 
++&cf_ad9364_dac_core_0 {
++	/* This property is controlled by u-boot environment. */
++	compatible = "adi,axi-ad9361-dds-6.00.a";
++};
++	
+ / {
++	model = "Analog Devices PlutoSDR Rev.C (Z7010/AD9363)";
++
+ 	leds {
+ 		compatible = "gpio-leds";
+ 		led0 {
+-			label = "led0:green";
+-			gpios = <&gpio0 68 0>;
++			label = "led0:yellow";
++			gpios = <&gpio0 0 0>;
+ 			linux,default-trigger = "heartbeat";
+ 		};
+ 	};
+@@ -39,6 +43,14 @@
+ 		compatible = "gpio-keys";
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+-		autorepeat;
++
++		button {
++			interrupt-parent = <&gpio0>;
++			interrupts = <10 IRQ_TYPE_EDGE_FALLING>;
++			label = "Button";
++			linux,code = <BTN_MISC>;
++		};
++
+ 	};
++
+ };
+--- a/linux/arch/arm/boot/dts/zynq-pluto-sdr.dtsi
++++ b/linux/arch/arm/boot/dts/zynq-pluto-sdr.dtsi
+@@ -8,12 +8,14 @@
+ #include "zynq.dtsi"
+ 
+ #include <dt-bindings/interrupt-controller/irq.h>
++#define AD9361_EXT_BAND_CTL_SHORTHANDS
++#include <dt-bindings/iio/adc/adi,ad9361.h>
+ 
+ / {
+-	model = "Analog Devices PlutoSDR Rev.A (Z7010/AD9363)";
++	model = "Analog Devices PlutoSDR Rev.C (Z7010/AD9363)";
+ 	memory {
+ 		device_type = "memory";
+-		reg = <0x00000000 0x20000000>;
++		reg = <0x00000000 0x40000000>;
+ 	};
+ 
+ 	chosen {
+@@ -25,28 +27,42 @@
+ 			#clock-cells = <0>;
+ 			compatible = "adjustable-clock";
+ 			clock-frequency = <40000000>;
+-			clock-accuracy = <200000>; /* 200 ppm (ppb) */
++			clock-accuracy = <500>; /* 200 ppm (ppb) */
+ 			clock-output-names = "ad9364_ext_refclk";
+ 		};
+ 	};
+ 
+ };
+ 
+-&sdhci0 {
+-	status = "disabled";
+-};
+-
+ &watchdog0 {
+ 	status = "okay";
+ 	reset-on-timeout;
+ };
+ 
+ &usb0 {
+-	xlnx,phy-reset-gpio = <&gpio0 52 0>;
++	xlnx,phy-reset-gpio = <&gpio0 46 0>;
+ 	dr_mode = "otg";
+ 	status = "okay";
+ };
+ 
++&gem0 {
++	status = "okay";
++	phy-mode = "rgmii-id";
++	phy-handle = <&phy0>;
++
++	phy0: phy@0 { /* Marvell 88e1512 */
++		reg = <0>;
++		compatible = "ethernet-phy-ieee802.3-c22";
++	};
++};
++
++&sdhci0 {
++	status = "okay";
++	xlnx,has-cd = <0x0>;
++	xlnx,has-power = <0x0>;
++	xlnx,has-wp = <0x0>;
++};
++
+ &qspi {
+ 	status = "okay";
+ 	is-dual = <0>;
+@@ -75,7 +91,7 @@
+ 		};
+ 		partition@qspi-linux {
+ 			label = "qspi-linux";
+-			reg = <0x200000 0x1E00000>; /* 30M */
++			reg = <0x200000 0xE00000>; /* 30M */
+ 		};
+ 	};
+ };
+@@ -186,7 +202,7 @@
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+ 		#clock-cells = <1>;
+-		compatible = "adi,ad9363a";
++		compatible = "adi,ad9361";
+ 
+ 		/* SPI Setup */
+ 		reg = <0>;
+@@ -206,21 +222,17 @@
+ 		  * 2 = SKIP ALL
+ 		  */
+ 		//adi,digital-interface-tune-skip-mode = <0>;
+-
++		adi,digital-interface-tune-skip-mode = <0>;/* TUNE RX & TX */
+ 		adi,pp-tx-swap-enable;
+ 		adi,pp-rx-swap-enable;
+ 		adi,rx-frame-pulse-mode-enable;
+-
+-		adi,xo-disable-use-ext-refclk-enable;
+-
+-		/* Enable CMOS Mode */
+-		adi,full-port-enable;
+-		adi,digital-interface-tune-fir-disable;
+-
+-		adi,digital-interface-tune-skip-mode = <0>; /* TUNE RX & TX */
+-		adi,tx-fb-clock-delay = <0>;
++		adi,lvds-mode-enable;
++		adi,lvds-bias-mV = <150>;
++		adi,lvds-rx-onchip-termination-enable;
++		adi,rx-data-delay = <4>;
++		adi,tx-fb-clock-delay = <7>;
+ 		adi,tx-data-delay = <9>;
+-		adi,swap-ports-enable;
++		adi,xo-disable-use-ext-refclk-enable;
+ 
+ 		/* Mode Setup */
+ 
+@@ -263,7 +275,7 @@
+ 		adi,rf-rx-bandwidth-hz = <18000000>;
+ 		adi,rf-tx-bandwidth-hz = <18000000>;
+ 		adi,rx-synthesizer-frequency-hz = /bits/ 64 <2400000000>;
+-		adi,tx-synthesizer-frequency-hz = /bits/ 64 <2450000000>;
++		adi,tx-synthesizer-frequency-hz = /bits/ 64 <2400000000>;
+ 
+ 		/*				BBPLL     ADC        R2CLK     R1CLK    CLKRF    RSAMPL  */
+ 		adi,rx-path-clock-frequencies = <983040000 245760000 122880000 61440000 30720000 30720000>;
+--- a/linux/arch/arm/boot/dts/zynq-pluto-sdr-revb.dts
++++ b/linux/arch/arm/boot/dts/zynq-pluto-sdr-revb.dts
+@@ -17,24 +17,24 @@
+ #include <dt-bindings/gpio/gpio.h>
+ #include <dt-bindings/interrupt-controller/irq.h>
+ 
+-&axi_i2c0 {
+-	current_limiter@5a {
+-		compatible = "adi,adm1177-iio";
+-		reg = <0x5a>;
+-		adi,r-sense-mohm = <50>; /* 50 mOhm */
+-		adi,shutdown-threshold-ma = <1059>; /* 1.059 A */
+-		adi,vrange-high-enable;
+-	};
++&adc0_ad9364 {
++	/* This property is controlled by u-boot environment. */
++	adi,2rx-2tx-mode-enable;
+ };
+ 
++&cf_ad9364_dac_core_0 {
++	/* This property is controlled by u-boot environment. */
++	compatible = "adi,axi-ad9361-dds-6.00.a";
++};
++	
+ / {
+-	model = "Analog Devices PlutoSDR Rev.B (Z7010/AD9363)";
++	model = "Analog Devices PlutoSDR Rev.C (Z7010/AD9363)";
+ 
+ 	leds {
+ 		compatible = "gpio-leds";
+ 		led0 {
+-			label = "led0:green";
+-			gpios = <&gpio0 15 0>;
++			label = "led0:yellow";
++			gpios = <&gpio0 0 0>;
+ 			linux,default-trigger = "heartbeat";
+ 		};
+ 	};
+@@ -46,10 +46,11 @@
+ 
+ 		button {
+ 			interrupt-parent = <&gpio0>;
+-			interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
++			interrupts = <10 IRQ_TYPE_EDGE_FALLING>;
+ 			label = "Button";
+ 			linux,code = <BTN_MISC>;
+ 		};
+ 
+ 	};
++
+ };
+--- a/linux/arch/arm/boot/dts/zynq-pluto-sdr-revc.dts
++++ b/linux/arch/arm/boot/dts/zynq-pluto-sdr-revc.dts
+@@ -102,7 +102,7 @@
+ 		compatible = "gpio-leds";
+ 		led0 {
+ 			label = "led0:green";
+-			gpios = <&gpio0 15 0>;
++			gpios = <&gpio0 0 0>;
+ 			linux,default-trigger = "heartbeat";
+ 		};
+ 	};
+@@ -114,7 +114,7 @@
+ 
+ 		button {
+ 			interrupt-parent = <&gpio0>;
+-			interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
++			interrupts = <10 IRQ_TYPE_EDGE_FALLING>;
+ 			label = "Button";
+ 			linux,code = <BTN_MISC>;
+ 		};
+--- a/linux/arch/arm/configs/zynq_pluto_defconfig
++++ b/linux/arch/arm/configs/zynq_pluto_defconfig
+@@ -17,6 +17,21 @@
+ CONFIG_PERF_EVENTS=y
+ CONFIG_SLAB=y
+ CONFIG_ARCH_ZYNQ=y
++
++
++CONFIG_MMC=y
++CONFIG_MMC_SDHCI=y
++CONFIG_MMC_SDHCI_PLTFM=y
++CONFIG_MMC_SDHCI_OF_ARASAN=y
++
++CONFIG_OF_MDIO=y
++CONFIG_REALTEK_PHY=y
++CONFIG_ETHERNET=y
++CONFIG_NET_VENDOR_XILINX=y
++CONFIG_XILINX_AXI_EMAC=y
++CONFIG_MACB=y
++
++
+ CONFIG_XILINX_RESET_CODE=y
+ CONFIG_PL310_ERRATA_588369=y
+ CONFIG_PL310_ERRATA_727915=y
+--- a/buildroot/board/pluto/S23udc
++++ b/buildroot/board/pluto/S23udc
+@@ -47,7 +47,7 @@
+ 	fi
+ 
+ 	echo -e "hw_serial=$serial\n" >> /etc/libiio.ini
+-	echo "fw_version=`grep device-fw /opt/VERSIONS | cut -d ' ' -f 2`" >> /etc/libiio.ini
++	echo "fw_version=v0.38" >> /etc/libiio.ini
+ 	if [ "$USBPID" == "0xb673" ]; then
+ 		echo ad9361-phy,xo_correction=`cat /sys/bus/iio/devices/${DEV_NAME}/xo_correction` >> /etc/libiio.ini
+ 		echo ad9361-phy,model=$AD936X_TYPE >> /etc/libiio.ini
+@@ -69,7 +69,7 @@
+ 	model_variant=`dmesg | grep m25p80 | grep Kbytes | cut -d ' ' -f 3`
+ 
+ 	serial=`dmesg | grep SPI-NOR-UniqueID`
+-	serial=${serial#*SPI-NOR-UniqueID }
++	serial=104473023196000bf5ff1a00aae12c3ca8
+ 
+ 	create_iiod_context_attributes "$model" "$serial" "$model_variant"
+ 
+--- a/u-boot-xlnx/arch/arm/dts/zynq-pluto-sdr.dts
++++ b/u-boot-xlnx/arch/arm/dts/zynq-pluto-sdr.dts
+@@ -20,7 +20,7 @@
+ 
+ 	memory {
+ 		device_type = "memory";
+-		reg = <0x0 0x20000000>;
++		reg = <0x0 0x40000000>;
+ 	};
+ 
+ 	chosen {
+@@ -61,7 +61,7 @@
+ 		};
+ 		partition@qspi-linux {
+ 			label = "qspi-linux";
+-			reg = <0x200000 0x1E00000>; /* 30M */
++			reg = <0x200000 0xE00000>; /*14M */
+ 		};
+ 	};
+ };
+@@ -75,3 +75,20 @@
+ 	dr_mode = "host";
+ 	usb-phy = <&usb_phy0>;
+ };
++
++&sdhci0 {
++	u-boot,dm-pre-reloc;
++	status = "okay";	
++};
++
++&gem0 {
++	status = "okay";
++	phy-mode = "rgmii-id";
++	phy-handle = <&ethernet_phy0>;
++
++	ethernet_phy0: ethernet-phy@0 {
++		reg = <0>;
++	};
++};
++
++
+--- a/u-boot-xlnx/board/xilinx/zynq/board.c
++++ b/u-boot-xlnx/board/xilinx/zynq/board.c
+@@ -113,7 +113,7 @@
+ #include <environment.h>
+ int misc_init_r(void)
+ {
+-#define BUTTON_GPIO 14
++#define BUTTON_GPIO 10
+ 
+ 	gpio_request(BUTTON_GPIO, "SWITCH");
+ 	gpio_direction_input(BUTTON_GPIO);
+--- a/u-boot-xlnx/configs/zynq_pluto_defconfig
++++ b/u-boot-xlnx/configs/zynq_pluto_defconfig
+@@ -3,6 +3,14 @@
+ CONFIG_ARCH_ZYNQ=y
+ CONFIG_SYS_MALLOC_F_LEN=0x800
+ CONFIG_DEFAULT_DEVICE_TREE="zynq-pluto-sdr"
++
++CONFIG_ZYNQ_SDHCI=y
++CONFIG_CMD_MMC=y
++CONFIG_MMC_SDHCI=y
++CONFIG_MMC_SDHCI_ZYNQ=y
++CONFIG_SD_BOOT=y
++DEBUG=y
++
+ CONFIG_SPL=y
+ CONFIG_FIT=y
+ CONFIG_FIT_VERBOSE=y
+--- a/u-boot-xlnx/include/configs/zynq-common.h
++++ b/u-boot-xlnx/include/configs/zynq-common.h
+@@ -78,7 +78,7 @@
+ "dfu_sf_info="\
+ "set dfu_alt_info " \
+ "boot.dfu raw 0x0 0x100000\\\\;" \
+-"firmware.dfu raw 0x200000 0x1E00000\\\\;" \
++"firmware.dfu raw 0x200000 0x0E00000\\\\;" \
+ "uboot-extra-env.dfu raw 0xFF000 0x1000\\\\;" \
+ "uboot-env.dfu raw 0x100000 0x20000\\\\;" \
+ "spare.dfu raw 0x120000 0xE0000\0" \
+@@ -127,7 +127,7 @@
+ 	"dfu_ram_info=" \
+ 	"set dfu_alt_info " \
+ 	"dummy.dfu ram 0 0\\\\;" \
+-	"firmware.dfu ram ${fit_load_address} 0x1E00000\0" \
++	"firmware.dfu ram ${fit_load_address} 0xE00000\0" \
+ 	"dfu_ram=echo Entering DFU RAM mode ... && run dfu_ram_info && dfu 0 ram 0\0" \
+ 	"thor_ram=run dfu_ram_info && thordown 0 ram 0\0"
+ 
+@@ -269,7 +269,7 @@
+ 			"fi; " \
+ 		"fi; \0" \
+ 	"refclk_source=internal\0" \
+-	"mode=1r1t\0" \
++	"mode=2r2t\0" \
+ 	"adi_loadvals_pluto=if test -n \"${ad936x_ext_refclk}\" && test ! -n \"${ad936x_skip_ext_refclk}\"; then " \
+ 			"fdt set /clocks/clock@0 clock-frequency ${ad936x_ext_refclk}; " \
+ 		"fi; " \
+@@ -327,7 +327,7 @@
+ 	"read_sf=sf probe 0:0 50000000 0 && run qspiboot_extraenv &&" \
+ 		"sf read ${fit_load_address} 0x200000 ${fit_size} && " \
+ 		"iminfo ${fit_load_address} || " \
+-		"sf read ${fit_load_address} 0x200000  0x1E00000; \0" \
++		"sf read ${fit_load_address} 0x200000  0xE00000; \0" \
+ 	"ramboot_verbose=adi_hwref;echo Copying Linux from DFU to RAM... && " \
+ 		"run dfu_ram;" \
+ 		"if run adi_loadvals; then " \
+@@ -342,7 +342,7 @@
+ 		"fi; " \
+ 		"envversion;setenv bootargs console=ttyPS0,115200 maxcpus=${maxcpus} rootfstype=ramfs root=/dev/ram0 rw earlyprintk clk_ignore_unused uboot=\"${uboot-version}\" && " \
+ 		"bootm ${fit_load_address}#${fit_config} || echo BOOT failed entering DFU mode ... && run dfu_sf \0" \
+-	"qspiboot=set stdout nulldev;adi_hwref;test -n $PlutoRevA || gpio input 14 && set stdout serial@e0001000 && sf probe && sf protect lock 0 100000 && run dfu_sf;  " \
++	"qspiboot=set stdout nulldev;adi_hwref;test -n $PlutoRevA || gpio input 10 && set stdout serial@e0001000 && sf probe && sf protect lock 0 100000 && run dfu_sf;  " \
+ 		"set stdout serial@e0001000;" \
+ 		"itest *f8000258 == 480003 && run clear_reset_cause && run dfu_sf; " \
+ 		"itest *f8000258 == 480007 && run clear_reset_cause && run ramboot_verbose; " \
+@@ -362,6 +362,14 @@
+ 			"echo Running uenvcmd ...; " \
+ 			"run uenvcmd; " \
+ 		"fi\0" \
++	"sdboot=if mmcinfo; then " \
++			"run uenvboot; " \
++			"echo Copying Linux from SD to RAM... && " \
++			"load mmc 0 ${fit_load_address} ${kernel_image} && " \
++			"load mmc 0 ${devicetree_load_address} ${devicetree_image} && " \
++			"load mmc 0 ${ramdisk_load_address} ${ramdisk_image} && " \
++			"bootm ${fit_load_address} ${ramdisk_load_address} ${devicetree_load_address}; " \
++		"fi\0" \
+ 	"usbboot=if usb start; then " \
+ 			"run uenvboot; " \
+ 			"echo Copying Linux from USB to RAM... && " \
+--- a/hdl/projects/pluto/system_bd.tcl
++++ b/hdl/projects/pluto/system_bd.tcl
+@@ -1,7 +1,6 @@
+ # create board design
+ 
+ source $ad_hdl_dir/projects/common/xilinx/adi_fir_filter_bd.tcl
+-source $ad_hdl_dir/library/axi_tdd/scripts/axi_tdd.tcl
+ 
+ # default ports
+ 
+@@ -30,8 +29,6 @@
+ create_bd_port -dir O spi_sdo_o
+ create_bd_port -dir I spi_sdi_i
+ 
+-create_bd_port -dir O txdata_o
+-create_bd_port -dir I tdd_ext_sync
+ 
+ # instance: sys_ps7
+ 
+@@ -39,33 +36,40 @@
+ 
+ # ps7 settings
+ 
+-ad_ip_parameter sys_ps7 CONFIG.PCW_PRESET_BANK0_VOLTAGE {LVCMOS 1.8V}
++ad_ip_parameter sys_ps7 CONFIG.PCW_PRESET_BANK0_VOLTAGE {LVCMOS 3.3V}
+ ad_ip_parameter sys_ps7 CONFIG.PCW_PRESET_BANK1_VOLTAGE {LVCMOS 1.8V}
+-ad_ip_parameter sys_ps7 CONFIG.PCW_PACKAGE_NAME clg225
++ad_ip_parameter sys_ps7 CONFIG.PCW_PACKAGE_NAME clg400
++ad_ip_parameter sys_ps7 CONFIG.PCW_GPIO_MIO_GPIO_ENABLE 1
++ad_ip_parameter sys_ps7 CONFIG.PCW_ENET0_PERIPHERAL_ENABLE 1
++ad_ip_parameter sys_ps7 CONFIG.PCW_ENET0_ENET0_IO "MIO 16 .. 27"
++ad_ip_parameter sys_ps7 CONFIG.PCW_ENET0_GRP_MDIO_ENABLE 1
++ad_ip_parameter sys_ps7 CONFIG.PCW_ENET0_GRP_MDIO_IO "MIO 52 .. 53"
++
+ ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP1 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP2 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_EN_CLK1_PORT 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_EN_RST1_PORT 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ 100.0
+ ad_ip_parameter sys_ps7 CONFIG.PCW_FPGA1_PERIPHERAL_FREQMHZ 200.0
++
+ ad_ip_parameter sys_ps7 CONFIG.PCW_GPIO_EMIO_GPIO_ENABLE 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_GPIO_EMIO_GPIO_IO 18
+ ad_ip_parameter sys_ps7 CONFIG.PCW_SPI1_PERIPHERAL_ENABLE 0
+ ad_ip_parameter sys_ps7 CONFIG.PCW_I2C0_PERIPHERAL_ENABLE 0
++ad_ip_parameter sys_ps7 CONFIG.PCW_SD0_PERIPHERAL_ENABLE 1
++ad_ip_parameter sys_ps7 CONFIG.PCW_SDIO_PERIPHERAL_FREQMHZ 50
+ ad_ip_parameter sys_ps7 CONFIG.PCW_UART1_PERIPHERAL_ENABLE 1
+-ad_ip_parameter sys_ps7 CONFIG.PCW_UART1_UART1_IO {MIO 12 .. 13}
++ad_ip_parameter sys_ps7 CONFIG.PCW_UART1_UART1_IO {MIO 8 .. 9}
+ ad_ip_parameter sys_ps7 CONFIG.PCW_I2C1_PERIPHERAL_ENABLE 0
+ ad_ip_parameter sys_ps7 CONFIG.PCW_QSPI_PERIPHERAL_ENABLE 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_QSPI_GRP_SINGLE_SS_ENABLE 1
+-ad_ip_parameter sys_ps7 CONFIG.PCW_SD0_PERIPHERAL_ENABLE 0
+ ad_ip_parameter sys_ps7 CONFIG.PCW_SPI0_PERIPHERAL_ENABLE 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_SPI0_SPI0_IO EMIO
+ ad_ip_parameter sys_ps7 CONFIG.PCW_TTC0_PERIPHERAL_ENABLE 0
+ ad_ip_parameter sys_ps7 CONFIG.PCW_USE_FABRIC_INTERRUPT 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_USB0_PERIPHERAL_ENABLE 1
+-ad_ip_parameter sys_ps7 CONFIG.PCW_GPIO_MIO_GPIO_ENABLE 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_GPIO_MIO_GPIO_IO MIO
+-ad_ip_parameter sys_ps7 CONFIG.PCW_USB0_RESET_IO {MIO 52}
++ad_ip_parameter sys_ps7 CONFIG.PCW_USB0_RESET_IO {MIO 46}
+ ad_ip_parameter sys_ps7 CONFIG.PCW_USB0_RESET_ENABLE 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_IRQ_F2P_INTR 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_IRQ_F2P_MODE REVERSE
+@@ -77,10 +81,11 @@
+ ad_ip_parameter sys_ps7 CONFIG.PCW_MIO_49_PULLUP {disabled}
+ ad_ip_parameter sys_ps7 CONFIG.PCW_MIO_53_PULLUP {enabled}
+ 
+-# DDR MT41K256M16 HA-125 (32M, 16bit, 8banks)
++
++# DDR MT41K256M16 HA-125 (32M, 32bit, 8banks)
+ 
+ ad_ip_parameter sys_ps7 CONFIG.PCW_UIPARAM_DDR_PARTNO {MT41K256M16 RE-125}
+-ad_ip_parameter sys_ps7 CONFIG.PCW_UIPARAM_DDR_BUS_WIDTH {16 Bit}
++ad_ip_parameter sys_ps7 CONFIG.PCW_UIPARAM_DDR_BUS_WIDTH {32 Bit}
+ ad_ip_parameter sys_ps7 CONFIG.PCW_UIPARAM_DDR_USE_INTERNAL_VREF 0
+ ad_ip_parameter sys_ps7 CONFIG.PCW_UIPARAM_DDR_TRAIN_WRITE_LEVEL 1
+ ad_ip_parameter sys_ps7 CONFIG.PCW_UIPARAM_DDR_TRAIN_READ_GATE 1
+@@ -175,13 +180,19 @@
+ 
+ # ad9361
+ 
+-create_bd_port -dir I rx_clk_in
+-create_bd_port -dir I rx_frame_in
+-create_bd_port -dir I -from 11 -to 0 rx_data_in
+-
+-create_bd_port -dir O tx_clk_out
+-create_bd_port -dir O tx_frame_out
+-create_bd_port -dir O -from 11 -to 0 tx_data_out
++create_bd_port -dir I rx_clk_in_p
++create_bd_port -dir I rx_clk_in_n
++create_bd_port -dir I rx_frame_in_p
++create_bd_port -dir I rx_frame_in_n
++create_bd_port -dir I -from 5 -to 0 rx_data_in_p
++create_bd_port -dir I -from 5 -to 0 rx_data_in_n
++
++create_bd_port -dir O tx_clk_out_p
++create_bd_port -dir O tx_clk_out_n
++create_bd_port -dir O tx_frame_out_p
++create_bd_port -dir O tx_frame_out_n
++create_bd_port -dir O -from 5 -to 0 tx_data_out_p
++create_bd_port -dir O -from 5 -to 0 tx_data_out_n
+ 
+ create_bd_port -dir O enable
+ create_bd_port -dir O txnrx
+@@ -192,9 +203,9 @@
+ 
+ ad_ip_instance axi_ad9361 axi_ad9361
+ ad_ip_parameter axi_ad9361 CONFIG.ID 0
+-ad_ip_parameter axi_ad9361 CONFIG.CMOS_OR_LVDS_N 1
++ad_ip_parameter axi_ad9361 CONFIG.CMOS_OR_LVDS_N 0
+ ad_ip_parameter axi_ad9361 CONFIG.MODE_1R1T 0
+-ad_ip_parameter axi_ad9361 CONFIG.ADC_INIT_DELAY 21
++ad_ip_parameter axi_ad9361 CONFIG.ADC_INIT_DELAY 30
+ 
+ ad_ip_instance axi_dmac axi_ad9361_dac_dma
+ ad_ip_parameter axi_ad9361_dac_dma CONFIG.DMA_TYPE_SRC 0
+@@ -228,12 +239,18 @@
+ 
+ # connections
+ 
+-ad_connect  rx_clk_in axi_ad9361/rx_clk_in
+-ad_connect  rx_frame_in axi_ad9361/rx_frame_in
+-ad_connect  rx_data_in axi_ad9361/rx_data_in
+-ad_connect  tx_clk_out axi_ad9361/tx_clk_out
+-ad_connect  tx_frame_out axi_ad9361/tx_frame_out
+-ad_connect  tx_data_out axi_ad9361/tx_data_out
++ad_connect  rx_clk_in_p axi_ad9361/rx_clk_in_p
++ad_connect  rx_clk_in_n axi_ad9361/rx_clk_in_n
++ad_connect  rx_frame_in_p axi_ad9361/rx_frame_in_p
++ad_connect  rx_frame_in_n axi_ad9361/rx_frame_in_n
++ad_connect  rx_data_in_p axi_ad9361/rx_data_in_p
++ad_connect  rx_data_in_n axi_ad9361/rx_data_in_n
++ad_connect  tx_clk_out_p axi_ad9361/tx_clk_out_p
++ad_connect  tx_clk_out_n axi_ad9361/tx_clk_out_n
++ad_connect  tx_frame_out_p axi_ad9361/tx_frame_out_p
++ad_connect  tx_frame_out_n axi_ad9361/tx_frame_out_n
++ad_connect  tx_data_out_p axi_ad9361/tx_data_out_p
++ad_connect  tx_data_out_n axi_ad9361/tx_data_out_n
+ ad_connect  enable axi_ad9361/enable
+ ad_connect  txnrx axi_ad9361/txnrx
+ ad_connect  up_enable axi_ad9361/up_enable
+@@ -280,6 +297,7 @@
+ ad_connect axi_ad9361/dac_data_q0 tx_fir_interpolator/data_out_1
+ 
+ ad_connect  axi_ad9361/l_clk tx_upack/clk
++ad_connect  axi_ad9361/rst tx_upack/reset
+ 
+ ad_connect  tx_upack/fifo_rd_data_0  tx_fir_interpolator/data_in_0
+ ad_connect  tx_upack/enable_0  tx_fir_interpolator/enable_out_0
+@@ -309,42 +327,6 @@
+ ad_connect  axi_ad9361/l_clk axi_ad9361_dac_dma/m_axis_aclk
+ ad_connect  cpack/fifo_wr_overflow axi_ad9361/adc_dovf
+ 
+-# External TDD
+-set TDD_CHANNEL_CNT 3
+-set TDD_DEFAULT_POL 0b010
+-set TDD_REG_WIDTH 32
+-set TDD_BURST_WIDTH 32
+-set TDD_SYNC_WIDTH 0
+-set TDD_SYNC_INT 0
+-set TDD_SYNC_EXT 1
+-set TDD_SYNC_EXT_CDC 1
+-ad_tdd_gen_create axi_tdd_0 $TDD_CHANNEL_CNT \
+-                            $TDD_DEFAULT_POL \
+-                            $TDD_REG_WIDTH \
+-                            $TDD_BURST_WIDTH \
+-                            $TDD_SYNC_WIDTH \
+-                            $TDD_SYNC_INT \
+-                            $TDD_SYNC_EXT \
+-                            $TDD_SYNC_EXT_CDC
+-
+-ad_ip_instance util_vector_logic logic_inv [list \
+-  C_OPERATION {not} \
+-  C_SIZE 1]
+-
+-ad_ip_instance util_vector_logic logic_or_1 [list \
+-  C_OPERATION {or} \
+-  C_SIZE 1]
+-
+-ad_connect logic_inv/Op1  axi_ad9361/rst
+-ad_connect logic_inv/Res  axi_tdd_0/resetn
+-ad_connect axi_ad9361/l_clk axi_tdd_0/clk
+-ad_connect axi_tdd_0/sync_in tdd_ext_sync
+-ad_connect axi_tdd_0/tdd_channel_0 txdata_o
+-ad_connect axi_tdd_0/tdd_channel_1 axi_ad9361_adc_dma/fifo_wr_sync
+-
+-ad_connect  logic_or_1/Op1  axi_ad9361/rst
+-ad_connect  logic_or_1/Op2  axi_tdd_0/tdd_channel_2
+-ad_connect  logic_or_1/Res  tx_upack/reset
+ 
+ # interconnects
+ 
+@@ -352,13 +334,12 @@
+ ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma
+ ad_cpu_interconnect 0x7C420000 axi_ad9361_dac_dma
+ ad_cpu_interconnect 0x7C430000 axi_spi
+-ad_cpu_interconnect 0x7C440000 axi_tdd_0
+ 
+ ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP1 {1}
+ ad_connect sys_cpu_clk sys_ps7/S_AXI_HP1_ACLK
+ ad_connect axi_ad9361_adc_dma/m_dest_axi sys_ps7/S_AXI_HP1
+ 
+-create_bd_addr_seg -range 0x20000000 -offset 0x00000000 \
++create_bd_addr_seg -range 0x40000000 -offset 0x00000000 \
+                     [get_bd_addr_spaces axi_ad9361_adc_dma/m_dest_axi] \
+                     [get_bd_addr_segs sys_ps7/S_AXI_HP1/HP1_DDR_LOWOCM] \
+                     SEG_sys_ps7_HP1_DDR_LOWOCM
+@@ -367,7 +348,7 @@
+ ad_connect sys_cpu_clk sys_ps7/S_AXI_HP2_ACLK
+ ad_connect axi_ad9361_dac_dma/m_src_axi sys_ps7/S_AXI_HP2
+ 
+-create_bd_addr_seg -range 0x20000000 -offset 0x00000000 \
++create_bd_addr_seg -range 0x40000000 -offset 0x00000000 \
+                     [get_bd_addr_spaces axi_ad9361_dac_dma/m_src_axi] \
+                     [get_bd_addr_segs sys_ps7/S_AXI_HP2/HP2_DDR_LOWOCM] \
+                     SEG_sys_ps7_HP2_DDR_LOWOCM
+--- a/hdl/projects/pluto/system_constr.xdc
++++ b/hdl/projects/pluto/system_constr.xdc
+@@ -1,80 +1,72 @@
+ # constraints
+ # ad9361 (SWAP == 0x1)
+ 
+-set_property  -dict {PACKAGE_PIN  L12  IOSTANDARD LVCMOS18 } [get_ports rx_clk_in]
+-set_property  -dict {PACKAGE_PIN  N13  IOSTANDARD LVCMOS18 } [get_ports rx_frame_in]
+-set_property  -dict {PACKAGE_PIN  H14  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[0]]
+-set_property  -dict {PACKAGE_PIN  J13  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[1]]
+-set_property  -dict {PACKAGE_PIN  G14  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[2]]
+-set_property  -dict {PACKAGE_PIN  H13  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[3]]
+-set_property  -dict {PACKAGE_PIN  G12  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[4]]
+-set_property  -dict {PACKAGE_PIN  H12  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[5]]
+-set_property  -dict {PACKAGE_PIN  G11  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[6]]
+-set_property  -dict {PACKAGE_PIN  J14  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[7]]
+-set_property  -dict {PACKAGE_PIN  J15  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[8]]
+-set_property  -dict {PACKAGE_PIN  K15  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[9]]
+-set_property  -dict {PACKAGE_PIN  H11  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[10]]
+-set_property  -dict {PACKAGE_PIN  J11  IOSTANDARD LVCMOS18 } [get_ports rx_data_in[11]]
+-
+-set_property  -dict {PACKAGE_PIN  P10  IOSTANDARD LVCMOS18} [get_ports tx_clk_out]
+-set_property  -dict {PACKAGE_PIN  L14  IOSTANDARD LVCMOS18} [get_ports tx_frame_out]
+-set_property  -dict {PACKAGE_PIN  P15  IOSTANDARD LVCMOS18} [get_ports tx_data_out[0]]
+-set_property  -dict {PACKAGE_PIN  R13  IOSTANDARD LVCMOS18} [get_ports tx_data_out[1]]
+-set_property  -dict {PACKAGE_PIN  R15  IOSTANDARD LVCMOS18} [get_ports tx_data_out[2]]
+-set_property  -dict {PACKAGE_PIN  P11  IOSTANDARD LVCMOS18} [get_ports tx_data_out[3]]
+-set_property  -dict {PACKAGE_PIN  R11  IOSTANDARD LVCMOS18} [get_ports tx_data_out[4]]
+-set_property  -dict {PACKAGE_PIN  R12  IOSTANDARD LVCMOS18} [get_ports tx_data_out[5]]
+-set_property  -dict {PACKAGE_PIN  P14  IOSTANDARD LVCMOS18} [get_ports tx_data_out[6]]
+-set_property  -dict {PACKAGE_PIN  P13  IOSTANDARD LVCMOS18} [get_ports tx_data_out[7]]
+-set_property  -dict {PACKAGE_PIN  N9   IOSTANDARD LVCMOS18} [get_ports tx_data_out[8]]
+-set_property  -dict {PACKAGE_PIN  M9   IOSTANDARD LVCMOS18} [get_ports tx_data_out[9]]
+-set_property  -dict {PACKAGE_PIN  R8   IOSTANDARD LVCMOS18} [get_ports tx_data_out[10]]
+-set_property  -dict {PACKAGE_PIN  R7   IOSTANDARD LVCMOS18} [get_ports tx_data_out[11]]
+-
+-set_property  -dict {PACKAGE_PIN  L15  IOSTANDARD LVCMOS18} [get_ports gpio_status[0]]
+-set_property  -dict {PACKAGE_PIN  M15  IOSTANDARD LVCMOS18} [get_ports gpio_status[1]]
+-set_property  -dict {PACKAGE_PIN  N11  IOSTANDARD LVCMOS18} [get_ports gpio_status[2]]
+-set_property  -dict {PACKAGE_PIN  N12  IOSTANDARD LVCMOS18} [get_ports gpio_status[3]]
+-set_property  -dict {PACKAGE_PIN  M10  IOSTANDARD LVCMOS18} [get_ports gpio_status[4]]
+-set_property  -dict {PACKAGE_PIN  M11  IOSTANDARD LVCMOS18} [get_ports gpio_status[5]]
+-set_property  -dict {PACKAGE_PIN  N7   IOSTANDARD LVCMOS18} [get_ports gpio_status[6]]
+-set_property  -dict {PACKAGE_PIN  N8   IOSTANDARD LVCMOS18} [get_ports gpio_status[7]]
+-
+-set_property  -dict {PACKAGE_PIN  F13  IOSTANDARD LVCMOS18} [get_ports gpio_ctl[0]]
+-set_property  -dict {PACKAGE_PIN  F14  IOSTANDARD LVCMOS18} [get_ports gpio_ctl[1]]
+-set_property  -dict {PACKAGE_PIN  G15  IOSTANDARD LVCMOS18} [get_ports gpio_ctl[2]]
+-set_property  -dict {PACKAGE_PIN  F15  IOSTANDARD LVCMOS18} [get_ports gpio_ctl[3]]
+-
+-set_property  -dict {PACKAGE_PIN  L13  IOSTANDARD LVCMOS18} [get_ports gpio_en_agc]
+-set_property  -dict {PACKAGE_PIN  P9   IOSTANDARD LVCMOS18} [get_ports gpio_resetb]
+-
+-set_property  -dict {PACKAGE_PIN  K12  IOSTANDARD LVCMOS18} [get_ports enable]
+-set_property  -dict {PACKAGE_PIN  K11  IOSTANDARD LVCMOS18} [get_ports txnrx]
+-
+-set_property  -dict {PACKAGE_PIN  E12  IOSTANDARD LVCMOS18  PULLTYPE PULLUP} [get_ports spi_csn]
+-set_property  -dict {PACKAGE_PIN  E11  IOSTANDARD LVCMOS18} [get_ports spi_clk]
+-set_property  -dict {PACKAGE_PIN  E13  IOSTANDARD LVCMOS18} [get_ports spi_mosi]
+-set_property  -dict {PACKAGE_PIN  F12  IOSTANDARD LVCMOS18} [get_ports spi_miso]
+-
+-# PL GPIOs
+-#
+-# Pin  | Package Pin | GPIO     | Pluto    | Phaser  |
+-# -----|-------------|----------|----------|---------|
+-# L10P | K13         | PL_GPIO0 | SPI MOSI | TXDATA  |
+-# L12N | M12         | PL_GPIO1 | SPI MISO | BURST   |
+-# L24N | R10         | PL_GPIO2 | SPI CLKO | MUXOUT  |
+-# L7N  | N14         | PL_GPIO3 | IIC SDA  | IIC SDA |
+-# L9N  | M14         | PL_GPIO4 | IIC SCL  | IIC SCL |
+-
+-set_property  -dict {PACKAGE_PIN  K13  IOSTANDARD LVCMOS18} [get_ports pl_gpio0]
+-set_property  -dict {PACKAGE_PIN  M12  IOSTANDARD LVCMOS18} [get_ports pl_gpio1]
+-set_property  -dict {PACKAGE_PIN  R10  IOSTANDARD LVCMOS18} [get_ports pl_gpio2]
+-set_property  -dict {PACKAGE_PIN  N14  IOSTANDARD LVCMOS18 PULLTYPE PULLUP} [get_ports pl_gpio3]
+-set_property  -dict {PACKAGE_PIN  M14  IOSTANDARD LVCMOS18 PULLTYPE PULLUP} [get_ports pl_gpio4]
++set_property  -dict {PACKAGE_PIN  U18  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_clk_in_p]        
++set_property  -dict {PACKAGE_PIN  U19  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_clk_in_n]        
++set_property  -dict {PACKAGE_PIN  Y16  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_frame_in_p]      
++set_property  -dict {PACKAGE_PIN  Y17  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_frame_in_n]      
++set_property  -dict {PACKAGE_PIN  Y18  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_p[0]]   
++set_property  -dict {PACKAGE_PIN  Y19  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_n[0]]   
++set_property  -dict {PACKAGE_PIN  T16  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_p[1]]   
++set_property  -dict {PACKAGE_PIN  U17  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_n[1]]   
++set_property  -dict {PACKAGE_PIN  V20  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_p[2]]   
++set_property  -dict {PACKAGE_PIN  W20  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_n[2]]   
++set_property  -dict {PACKAGE_PIN  T17  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_p[3]]   
++set_property  -dict {PACKAGE_PIN  R18  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_n[3]]   
++set_property  -dict {PACKAGE_PIN  T20  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_p[4]]   
++set_property  -dict {PACKAGE_PIN  U20  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_n[4]]   
++set_property  -dict {PACKAGE_PIN  W18  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_p[5]]   
++set_property  -dict {PACKAGE_PIN  W19  IOSTANDARD LVDS_25 DIFF_TERM TRUE} [get_ports rx_data_in_n[5]]   
++set_property  -dict {PACKAGE_PIN  U14  IOSTANDARD LVDS_25} [get_ports tx_clk_out_p]                     
++set_property  -dict {PACKAGE_PIN  U15  IOSTANDARD LVDS_25} [get_ports tx_clk_out_n]                     
++set_property  -dict {PACKAGE_PIN  V16  IOSTANDARD LVDS_25} [get_ports tx_frame_out_p]                   
++set_property  -dict {PACKAGE_PIN  W16  IOSTANDARD LVDS_25} [get_ports tx_frame_out_n]                   
++set_property  -dict {PACKAGE_PIN  V15  IOSTANDARD LVDS_25} [get_ports tx_data_out_p[0]]                 
++set_property  -dict {PACKAGE_PIN  W15  IOSTANDARD LVDS_25} [get_ports tx_data_out_n[0]]                 
++set_property  -dict {PACKAGE_PIN  V12  IOSTANDARD LVDS_25} [get_ports tx_data_out_p[1]]                 
++set_property  -dict {PACKAGE_PIN  W13  IOSTANDARD LVDS_25} [get_ports tx_data_out_n[1]]                 
++set_property  -dict {PACKAGE_PIN  W14  IOSTANDARD LVDS_25} [get_ports tx_data_out_p[2]]                 
++set_property  -dict {PACKAGE_PIN  Y14  IOSTANDARD LVDS_25} [get_ports tx_data_out_n[2]]                 
++set_property  -dict {PACKAGE_PIN  T12  IOSTANDARD LVDS_25} [get_ports tx_data_out_p[3]]                 
++set_property  -dict {PACKAGE_PIN  U12  IOSTANDARD LVDS_25} [get_ports tx_data_out_n[3]]                 
++set_property  -dict {PACKAGE_PIN  T11  IOSTANDARD LVDS_25} [get_ports tx_data_out_p[4]]                 
++set_property  -dict {PACKAGE_PIN  T10  IOSTANDARD LVDS_25} [get_ports tx_data_out_n[4]]                 
++set_property  -dict {PACKAGE_PIN  U13  IOSTANDARD LVDS_25} [get_ports tx_data_out_p[5]]                 
++set_property  -dict {PACKAGE_PIN  V13  IOSTANDARD LVDS_25} [get_ports tx_data_out_n[5]]                  
++
++set_property  -dict {PACKAGE_PIN  L20 IOSTANDARD LVCMOS25} [get_ports gpio_status[0]]                  
++set_property  -dict {PACKAGE_PIN  L19 IOSTANDARD LVCMOS25} [get_ports gpio_status[1]]                  
++set_property  -dict {PACKAGE_PIN  K19 IOSTANDARD LVCMOS25} [get_ports gpio_status[2]]                  
++set_property  -dict {PACKAGE_PIN  T14 IOSTANDARD LVCMOS25} [get_ports gpio_status[3]]                  
++set_property  -dict {PACKAGE_PIN  P15 IOSTANDARD LVCMOS25} [get_ports gpio_status[4]]                  
++set_property  -dict {PACKAGE_PIN  M20 IOSTANDARD LVCMOS25} [get_ports gpio_status[5]]                  
++set_property  -dict {PACKAGE_PIN  M19 IOSTANDARD LVCMOS25} [get_ports gpio_status[6]]                  
++set_property  -dict {PACKAGE_PIN  N20 IOSTANDARD LVCMOS25} [get_ports gpio_status[7]]
++                 
++set_property  -dict {PACKAGE_PIN  J19 IOSTANDARD LVCMOS25} [get_ports gpio_ctl[0]]                     
++set_property  -dict {PACKAGE_PIN  K14 IOSTANDARD LVCMOS25} [get_ports gpio_ctl[1]]                     
++set_property  -dict {PACKAGE_PIN  L17 IOSTANDARD LVCMOS25} [get_ports gpio_ctl[2]]                     
++set_property  -dict {PACKAGE_PIN  J20 IOSTANDARD LVCMOS25} [get_ports gpio_ctl[3]] 
++set_property  -dict {PACKAGE_PIN  P20  IOSTANDARD LVCMOS25} [get_ports gpio_en_agc]
++set_property  -dict {PACKAGE_PIN  R19  IOSTANDARD LVCMOS25} [get_ports gpio_resetb]
++
++set_property  -dict {PACKAGE_PIN  T15  IOSTANDARD LVCMOS25} [get_ports enable]
++set_property  -dict {PACKAGE_PIN  P18  IOSTANDARD LVCMOS25} [get_ports txnrx]
++
++set_property  -dict {PACKAGE_PIN  M14  IOSTANDARD LVCMOS25 PULLTYPE PULLUP} [get_ports iic_scl]
++set_property  -dict {PACKAGE_PIN  M15  IOSTANDARD LVCMOS25 PULLTYPE PULLUP} [get_ports iic_sda]
++
++set_property  -dict {PACKAGE_PIN  R17  IOSTANDARD LVCMOS25  PULLTYPE PULLUP} [get_ports spi_csn]
++set_property  -dict {PACKAGE_PIN  V18  IOSTANDARD LVCMOS25} [get_ports spi_clk]
++set_property  -dict {PACKAGE_PIN  P16  IOSTANDARD LVCMOS25} [get_ports spi_mosi]
++set_property  -dict {PACKAGE_PIN  V17  IOSTANDARD LVCMOS25} [get_ports spi_miso]
++
++set_property  -dict {PACKAGE_PIN  L14  IOSTANDARD LVCMOS25} [get_ports pl_spi_clk_o]
++set_property  -dict {PACKAGE_PIN  N15  IOSTANDARD LVCMOS25} [get_ports pl_spi_miso]
++set_property  -dict {PACKAGE_PIN  N16  IOSTANDARD LVCMOS25} [get_ports pl_spi_mosi]
+ 
+-set_property  -dict {PACKAGE_PIN  P8   IOSTANDARD LVCMOS18} [get_ports clk_out]
+ 
+-create_clock -name rx_clk -period  16.27 [get_ports rx_clk_in]
++create_clock -period 4.000 -name rx_clk [get_ports rx_clk_in_p]
+ 
+ # probably gone in 2016.4
+ 
+@@ -86,133 +78,5 @@
+ set_input_jitter clk_fpga_0 0.3
+ set_input_jitter clk_fpga_1 0.15
+ 
+-set_property IOSTANDARD LVCMOS18 [get_ports *fixed_io_mio*]
+-set_property SLEW SLOW [get_ports *fixed_io_mio*]
+-set_property DRIVE 8 [get_ports *fixed_io_mio*]
+-set_property  -dict {PACKAGE_PIN D8   PULLTYPE PULLUP} [get_ports fixed_io_mio[ 0]]
+-set_property  -dict {PACKAGE_PIN A5   PULLTYPE PULLUP} [get_ports fixed_io_mio[ 1]]
+-set_property  -dict {PACKAGE_PIN A8                  } [get_ports fixed_io_mio[ 2]]
+-set_property  -dict {PACKAGE_PIN A7                  } [get_ports fixed_io_mio[ 3]]
+-set_property  -dict {PACKAGE_PIN C8                  } [get_ports fixed_io_mio[ 4]]
+-set_property  -dict {PACKAGE_PIN A9                  } [get_ports fixed_io_mio[ 5]]
+-set_property  -dict {PACKAGE_PIN A10                 } [get_ports fixed_io_mio[ 6]]
+-set_property  -dict {PACKAGE_PIN D9                  } [get_ports fixed_io_mio[ 7]]
+-set_property  -dict {PACKAGE_PIN B6                  } [get_ports fixed_io_mio[ 8]]
+-set_property  -dict {PACKAGE_PIN B5   PULLTYPE PULLUP} [get_ports fixed_io_mio[ 9]]
+-set_property  -dict {PACKAGE_PIN D6   PULLTYPE PULLUP} [get_ports fixed_io_mio[10]]
+-set_property  -dict {PACKAGE_PIN B10  PULLTYPE PULLUP} [get_ports fixed_io_mio[11]]
+-set_property  -dict {PACKAGE_PIN B7   PULLTYPE PULLUP} [get_ports fixed_io_mio[12]]
+-set_property  -dict {PACKAGE_PIN C6   PULLTYPE PULLUP} [get_ports fixed_io_mio[13]]
+-set_property  -dict {PACKAGE_PIN B9   PULLTYPE PULLUP} [get_ports fixed_io_mio[14]]
+-set_property  -dict {PACKAGE_PIN D10  PULLTYPE PULLUP} [get_ports fixed_io_mio[15]]
+-set_property  -dict {PACKAGE_PIN A15  PULLTYPE PULLUP} [get_ports fixed_io_mio[16]]
+-set_property  -dict {PACKAGE_PIN D11  PULLTYPE PULLUP} [get_ports fixed_io_mio[17]]
+-set_property  -dict {PACKAGE_PIN B15  PULLTYPE PULLUP} [get_ports fixed_io_mio[18]]
+-set_property  -dict {PACKAGE_PIN C12  PULLTYPE PULLUP} [get_ports fixed_io_mio[19]]
+-set_property  -dict {PACKAGE_PIN E15  PULLTYPE PULLUP} [get_ports fixed_io_mio[20]]
+-set_property  -dict {PACKAGE_PIN C11  PULLTYPE PULLUP} [get_ports fixed_io_mio[21]]
+-set_property  -dict {PACKAGE_PIN D15  PULLTYPE PULLUP} [get_ports fixed_io_mio[22]]
+-set_property  -dict {PACKAGE_PIN A14  PULLTYPE PULLUP} [get_ports fixed_io_mio[23]]
+-set_property  -dict {PACKAGE_PIN B14  PULLTYPE PULLUP} [get_ports fixed_io_mio[24]]
+-set_property  -dict {PACKAGE_PIN C14  PULLTYPE PULLUP} [get_ports fixed_io_mio[25]]
+-set_property  -dict {PACKAGE_PIN A13  PULLTYPE PULLUP} [get_ports fixed_io_mio[26]]
+-set_property  -dict {PACKAGE_PIN D14  PULLTYPE PULLUP} [get_ports fixed_io_mio[27]]
+-set_property  -dict {PACKAGE_PIN B12  PULLTYPE PULLUP} [get_ports fixed_io_mio[28]]
+-set_property  -dict {PACKAGE_PIN D13  PULLTYPE PULLUP} [get_ports fixed_io_mio[29]]
+-set_property  -dict {PACKAGE_PIN A12  PULLTYPE PULLUP} [get_ports fixed_io_mio[30]]
+-set_property  -dict {PACKAGE_PIN C13  PULLTYPE PULLUP} [get_ports fixed_io_mio[31]]
+-
+-set_property IOSTANDARD LVCMOS18 [get_ports *fixed_io_ps*]
+-set_property SLEW SLOW [get_ports *fixed_io_ps*]
+-set_property DRIVE 8 [get_ports *fixed_io_ps*]
+-set_property PACKAGE_PIN C7 [get_ports fixed_io_ps_clk]
+-set_property PACKAGE_PIN C9 [get_ports fixed_io_ps_porb]
+-
+-set_property IOSTANDARD SSTL15_T_DCI [get_ports *fixed_io_ddr_vr*]
+-set_property SLEW FAST [get_ports *fixed_io_ddr_vr*]
+-set_property PACKAGE_PIN H3 [get_ports fixed_io_ddr_vrp]
+-set_property PACKAGE_PIN J3 [get_ports fixed_io_ddr_vrn]
+-
+-set_property IOSTANDARD DIFF_SSTL15 [get_ports *ddr_ck*]
+-set_property SLEW FAST [get_ports *ddr_ck*]
+-set_property PACKAGE_PIN N3 [get_ports ddr_ck_p]
+-set_property PACKAGE_PIN N2 [get_ports ddr_ck_n]
+-
+-set_property IOSTANDARD SSTL15 [get_ports *ddr_addr*]
+-set_property SLEW SLOW [get_ports *ddr_addr*]
+-set_property PACKAGE_PIN P1 [get_ports ddr_addr[0]]
+-set_property PACKAGE_PIN N1 [get_ports ddr_addr[1]]
+-set_property PACKAGE_PIN M1 [get_ports ddr_addr[2]]
+-set_property PACKAGE_PIN M4 [get_ports ddr_addr[3]]
+-set_property PACKAGE_PIN P3 [get_ports ddr_addr[4]]
+-set_property PACKAGE_PIN P4 [get_ports ddr_addr[5]]
+-set_property PACKAGE_PIN P5 [get_ports ddr_addr[6]]
+-set_property PACKAGE_PIN M5 [get_ports ddr_addr[7]]
+-set_property PACKAGE_PIN P6 [get_ports ddr_addr[8]]
+-set_property PACKAGE_PIN N4 [get_ports ddr_addr[9]]
+-set_property PACKAGE_PIN J1 [get_ports ddr_addr[10]]
+-set_property PACKAGE_PIN L2 [get_ports ddr_addr[11]]
+-set_property PACKAGE_PIN M2 [get_ports ddr_addr[12]]
+-set_property PACKAGE_PIN K2 [get_ports ddr_addr[13]]
+-set_property PACKAGE_PIN K1 [get_ports ddr_addr[14]]
+-
+-set_property IOSTANDARD SSTL15 [get_ports *ddr_ba*]
+-set_property SLEW SLOW [get_ports *ddr_ba*]
+-set_property PACKAGE_PIN M6 [get_ports ddr_ba[0]]
+-set_property PACKAGE_PIN R1 [get_ports ddr_ba[1]]
+-set_property PACKAGE_PIN N6 [get_ports ddr_ba[2]]
+-
+-set_property IOSTANDARD SSTL15 [get_ports ddr_reset_n]
+-set_property SLEW FAST [get_ports ddr_reset_n]
+-set_property PACKAGE_PIN L4 [get_ports ddr_reset_n]
+-set_property IOSTANDARD SSTL15 [get_ports ddr_cs_n]
+-set_property SLEW SLOW [get_ports ddr_cs_n]
+-set_property PACKAGE_PIN R2 [get_ports ddr_cs_n]
+-set_property IOSTANDARD SSTL15 [get_ports ddr_ras_n]
+-set_property SLEW SLOW [get_ports ddr_ras_n]
+-set_property PACKAGE_PIN R6 [get_ports ddr_ras_n]
+-set_property IOSTANDARD SSTL15 [get_ports ddr_cas_n]
+-set_property SLEW SLOW [get_ports ddr_cas_n]
+-set_property PACKAGE_PIN R5 [get_ports ddr_cas_n]
+-set_property IOSTANDARD SSTL15 [get_ports ddr_we_n]
+-set_property SLEW SLOW [get_ports ddr_we_n]
+-set_property PACKAGE_PIN R3 [get_ports ddr_we_n]
+-set_property IOSTANDARD SSTL15 [get_ports ddr_cke]
+-set_property SLEW SLOW [get_ports ddr_cke]
+-set_property PACKAGE_PIN L3 [get_ports ddr_cke]
+-set_property IOSTANDARD SSTL15 [get_ports ddr_odt]
+-set_property SLEW SLOW [get_ports ddr_odt]
+-set_property PACKAGE_PIN K3 [get_ports ddr_odt]
+-
+-set_property IOSTANDARD SSTL15_T_DCI [get_ports *ddr_dq[*]]
+-set_property SLEW FAST [get_ports *ddr_dq[*]]
+-set_property PACKAGE_PIN D4 [get_ports ddr_dq[0]]
+-set_property PACKAGE_PIN A2 [get_ports ddr_dq[1]]
+-set_property PACKAGE_PIN C4 [get_ports ddr_dq[2]]
+-set_property PACKAGE_PIN C1 [get_ports ddr_dq[3]]
+-set_property PACKAGE_PIN B4 [get_ports ddr_dq[4]]
+-set_property PACKAGE_PIN A4 [get_ports ddr_dq[5]]
+-set_property PACKAGE_PIN C3 [get_ports ddr_dq[6]]
+-set_property PACKAGE_PIN A3 [get_ports ddr_dq[7]]
+-set_property PACKAGE_PIN E1 [get_ports ddr_dq[8]]
+-set_property PACKAGE_PIN D1 [get_ports ddr_dq[9]]
+-set_property PACKAGE_PIN E2 [get_ports ddr_dq[10]]
+-set_property PACKAGE_PIN E3 [get_ports ddr_dq[11]]
+-set_property PACKAGE_PIN F3 [get_ports ddr_dq[12]]
+-set_property PACKAGE_PIN G1 [get_ports ddr_dq[13]]
+-set_property PACKAGE_PIN H1 [get_ports ddr_dq[14]]
+-set_property PACKAGE_PIN H2 [get_ports ddr_dq[15]]
+-set_property IOSTANDARD SSTL15_T_DCI [get_ports *ddr_dm[*]]
+-set_property SLEW FAST [get_ports *ddr_dm[*]]
+-set_property PACKAGE_PIN B1 [get_ports ddr_dm[0]]
+-set_property PACKAGE_PIN D3 [get_ports ddr_dm[1]]
+-set_property IOSTANDARD DIFF_SSTL15_T_DCI [get_ports *ddr_dqs*]
+-set_property SLEW FAST [get_ports *ddr_dqs*]
+-set_property PACKAGE_PIN C2 [get_ports ddr_dqs_p[0]]
+-set_property PACKAGE_PIN B2 [get_ports ddr_dqs_n[0]]
+-set_property PACKAGE_PIN G2 [get_ports ddr_dqs_p[1]]
+-set_property PACKAGE_PIN F2 [get_ports ddr_dqs_n[1]]
+ 
+-set_false_path -from [get_pins {i_system_wrapper/system_i/axi_ad9361/inst/i_rx/i_up_adc_common/up_adc_gpio_out_int_reg[0]/C}]
+-set_false_path -from [get_pins {i_system_wrapper/system_i/axi_ad9361/inst/i_tx/i_up_dac_common/up_dac_gpio_out_int_reg[0]/C}]
+ 
+--- a/hdl/projects/pluto/system_project.tcl
++++ b/hdl/projects/pluto/system_project.tcl
+@@ -2,7 +2,7 @@
+ source $ad_hdl_dir/projects/scripts/adi_project_xilinx.tcl
+ source $ad_hdl_dir/projects/scripts/adi_board.tcl
+ 
+-adi_project_create pluto 0 {} "xc7z010clg225-1"
++adi_project_create pluto 0 {} "xc7z020clg400-2"
+ 
+ adi_project_files pluto [list \
+   "system_top.v" \
+--- a/hdl/projects/pluto/system_top.v
++++ b/hdl/projects/pluto/system_top.v
+@@ -44,10 +44,10 @@
+   inout           ddr_ck_p,
+   inout           ddr_cke,
+   inout           ddr_cs_n,
+-  inout   [ 1:0]  ddr_dm,
+-  inout   [15:0]  ddr_dq,
+-  inout   [ 1:0]  ddr_dqs_n,
+-  inout   [ 1:0]  ddr_dqs_p,
++  inout   [ 3:0]  ddr_dm,
++  inout   [31:0]  ddr_dq,
++  inout   [ 3:0]  ddr_dqs_n,
++  inout   [ 3:0]  ddr_dqs_p,
+   inout           ddr_odt,
+   inout           ddr_ras_n,
+   inout           ddr_reset_n,
+@@ -55,21 +55,29 @@
+ 
+   inout           fixed_io_ddr_vrn,
+   inout           fixed_io_ddr_vrp,
+-  inout   [31:0]  fixed_io_mio,
++  inout   [53:0]  fixed_io_mio,
+   inout           fixed_io_ps_clk,
+   inout           fixed_io_ps_porb,
+   inout           fixed_io_ps_srstb,
+ 
+-  input           rx_clk_in,
+-  input           rx_frame_in,
+-  input   [11:0]  rx_data_in,
+-  output          tx_clk_out,
+-  output          tx_frame_out,
+-  output  [11:0]  tx_data_out,
++  inout           iic_scl,
++  inout           iic_sda,
++
++  input           rx_clk_in_p,
++  input           rx_clk_in_n,
++  input           rx_frame_in_p,
++  input           rx_frame_in_n,
++  input   [ 5:0]  rx_data_in_p,
++  input   [ 5:0]  rx_data_in_n,
++  output          tx_clk_out_p,
++  output          tx_clk_out_n,
++  output          tx_frame_out_p,
++  output          tx_frame_out_n,
++  output  [ 5:0]  tx_data_out_p,
++  output  [ 5:0]  tx_data_out_n,
+ 
+   output          enable,
+   output          txnrx,
+-  input           clk_out,
+ 
+   inout           gpio_resetb,
+   inout           gpio_en_agc,
+@@ -81,11 +89,9 @@
+   output          spi_mosi,
+   input           spi_miso,
+ 
+-  output          pl_gpio0,
+-  input           pl_gpio1,
+-  inout           pl_gpio2,
+-  inout           pl_gpio3,
+-  inout           pl_gpio4
++  output          pl_spi_clk_o,
++  output          pl_spi_mosi,
++  input           pl_spi_miso
+ );
+ 
+   // internal signals
+@@ -94,16 +100,6 @@
+   wire    [17:0]  gpio_o;
+   wire    [17:0]  gpio_t;
+ 
+-  wire            iic_scl;
+-  wire            iic_sda;
+-  wire            phaser_enable;
+-  wire            pl_burst;
+-  wire            pl_muxout;
+-  wire            pl_spi_clk_o;
+-  wire            pl_spi_miso;
+-  wire            pl_spi_mosi;
+-  wire            pl_txdata;
+-
+   // instantiations
+ 
+   ad_iobuf #(
+@@ -118,27 +114,8 @@
+               gpio_status}));     //  7: 0
+ 
+   assign gpio_i[16:14] = gpio_o[16:14];
+-  assign gpio_i[17] = pl_muxout;
+-  assign phaser_enable = gpio_o[14];
+ 
+-  assign pl_gpio4 = iic_scl;      //PL_GPIO4
+-  assign pl_gpio3 = iic_sda;      //PL_GPIO3
+ 
+-  //PL_GPIO2
+-  ad_iobuf #(
+-    .DATA_WIDTH(1)
+-  ) i_pl_gpio_iobuf (
+-    .dio_t (phaser_enable),
+-    .dio_i (pl_spi_clk_o),
+-    .dio_o (pl_muxout),
+-    .dio_p (pl_gpio2));
+-
+-  //PL_GPIO1
+-  assign pl_spi_miso = pl_gpio1 & ~phaser_enable;
+-  assign pl_burst    = pl_gpio1 &  phaser_enable;
+-
+-  //PL_GPIO0
+-  assign pl_gpio0 = phaser_enable ? pl_txdata : pl_spi_mosi;
+ 
+   system_wrapper i_system_wrapper (
+     .ddr_addr (ddr_addr),
+@@ -168,9 +145,12 @@
+     .gpio_t (gpio_t),
+     .iic_main_scl_io (iic_scl),
+     .iic_main_sda_io (iic_sda),
+-    .rx_clk_in (rx_clk_in),
+-    .rx_data_in (rx_data_in),
+-    .rx_frame_in (rx_frame_in),
++    .rx_clk_in_p (rx_clk_in_p),
++    .rx_clk_in_n (rx_clk_in_n),
++    .rx_data_in_p (rx_data_in_p),
++    .rx_data_in_n (rx_data_in_n),
++    .rx_frame_in_p (rx_frame_in_p),
++    .rx_frame_in_n (rx_frame_in_n),
+ 
+     .spi0_clk_i (1'b0),
+     .spi0_clk_o (spi_clk),
+@@ -190,12 +170,12 @@
+     .spi_sdo_i(1'b0),
+     .spi_sdo_o(pl_spi_mosi),
+ 
+-    .tdd_ext_sync(pl_burst),
+-    .txdata_o(pl_txdata),
+-
+-    .tx_clk_out (tx_clk_out),
+-    .tx_data_out (tx_data_out),
+-    .tx_frame_out (tx_frame_out),
++    .tx_clk_out_p (tx_clk_out_p),
++    .tx_clk_out_n (tx_clk_out_n),
++    .tx_data_out_p (tx_data_out_p),
++    .tx_data_out_n (tx_data_out_n),
++    .tx_frame_out_p (tx_frame_out_p),
++    .tx_frame_out_n (tx_frame_out_n),
+     .txnrx (txnrx),
+     .up_enable (gpio_o[15]),
+     .up_txnrx (gpio_o[16]));
+--- a/Makefile
++++ b/Makefile
+@@ -28,7 +28,9 @@
+ endif
+ 
+ TARGET ?= pluto
++TARGET_BOARD := $(TARGET)-sdr
+ SUPPORTED_TARGETS:=pluto sidekiqz2
++SDIMGDIR = $(CURDIR)/build_sdimg
+ 
+ # Include target specific constants
+ include scripts/$(TARGET).mk
+@@ -91,12 +93,18 @@
+ linux/arch/arm/boot/zImage: TOOLCHAIN
+ 	$(TOOLS_PATH) make -C linux ARCH=arm CROSS_COMPILE=$(CROSS_COMPILE) zynq_$(TARGET)_defconfig
+ 	$(TOOLS_PATH) make -C linux -j $(NCORES) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILE) zImage UIMAGE_LOADADDR=0x8000
++linux/arch/arm/boot/uImage: TOOLCHAIN
++	$(TOOLS_PATH) make -C linux ARCH=arm CROSS_COMPILE=$(CROSS_COMPILE) zynq_$(TARGET)_defconfig
++	$(TOOLS_PATH) make -C linux -j $(NCORES) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILE) uImage UIMAGE_LOADADDR=0x8000
+ 
+ .PHONY: linux/arch/arm/boot/zImage
++.PHONY: linux/arch/arm/boot/uImage
+ 
+ 
+ build/zImage: linux/arch/arm/boot/zImage | build
+ 	cp $< $@
++build/uImage: linux/arch/arm/boot/uImage | build
++	cp $< $@
+ 
+ ### Device Tree ###
+ 
+@@ -126,7 +134,7 @@
+ build/rootfs.cpio.gz: buildroot/output/images/rootfs.cpio.gz | build
+ 	cp $< $@
+ 
+-build/$(TARGET).itb: u-boot-xlnx/tools/mkimage build/zImage build/rootfs.cpio.gz $(TARGET_DTS_FILES) build/system_top.bit
++build/$(TARGET).itb: u-boot-xlnx/tools/mkimage build/zImage build/uImage build/rootfs.cpio.gz $(TARGET_DTS_FILES) build/system_top.bit
+ 	u-boot-xlnx/tools/mkimage -f scripts/$(TARGET).its $@
+ 
+ build/system_top.xsa:  | build
+@@ -177,6 +185,7 @@
+ clean-build:
+ 	rm -f $(notdir $(wildcard build/*))
+ 	rm -rf build/*
++	rm -rf build_sdimg/*
+ 
+ clean:
+ 	make -C u-boot-xlnx clean
+@@ -185,6 +194,7 @@
+ 	make -C hdl clean
+ 	rm -f $(notdir $(wildcard build/*))
+ 	rm -rf build/*
++	rm -rf build_sdimg/*
+ 
+ zip-all: $(TARGETS)
+ 	zip -j build/$(ZIP_ARCHIVE_PREFIX)-fw-$(VERSION).zip $^
+@@ -230,3 +240,28 @@
+ 
+ git-pull:
+ 	git pull --recurse-submodules
++
++## sd card ##
++sdimg: build/
++	rm -rf $(SDIMGDIR)
++	mkdir $(SDIMGDIR)
++	cp build/sdk/fsbl/Release/fsbl.elf 	$(SDIMGDIR)/fsbl.elf  
++	cp build/sdk/system_top/hw/system_top.bit 	$(SDIMGDIR)/system_top.bit
++	cp build/u-boot.elf 			$(SDIMGDIR)/u-boot.elf
++	cp build/uImage	$(SDIMGDIR)/uImage
++	cp build/zynq-$(TARGET_BOARD).dtb 	$(SDIMGDIR)/devicetree.dtb
++	cp build/uboot-env.txt  		$(SDIMGDIR)/uEnv.txt
++	cp build/rootfs.cpio.gz  		$(SDIMGDIR)/ramdisk.image.gz
++	mkimage -A arm -T ramdisk -C gzip -d $(SDIMGDIR)/ramdisk.image.gz $(SDIMGDIR)/uramdisk.image.gz
++	touch 	$(SDIMGDIR)/boot.bif
++	echo "img : {[bootloader] $(SDIMGDIR)/fsbl.elf  $(SDIMGDIR)/system_top.bit  $(SDIMGDIR)/u-boot.elf}" >  $(SDIMGDIR)/boot.bif
++	bash -c "source $(VIVADO_SETTINGS) && bootgen -image $(SDIMGDIR)/boot.bif -arch zynq -o $(SDIMGDIR)/BOOT.bin"
++	mkdir $(SDIMGDIR)/bootbin
++	cp $(SDIMGDIR)/fsbl.elf $(SDIMGDIR)/bootbin
++	cp $(SDIMGDIR)/system_top.bit $(SDIMGDIR)/bootbin
++	cp $(SDIMGDIR)/u-boot.elf $(SDIMGDIR)/bootbin
++	rm $(SDIMGDIR)/fsbl.elf
++	rm $(SDIMGDIR)/system_top.bit
++	rm $(SDIMGDIR)/u-boot.elf
++	rm $(SDIMGDIR)/ramdisk.image.gz 
++	rm $(SDIMGDIR)/boot.bif

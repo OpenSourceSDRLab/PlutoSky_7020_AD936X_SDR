@@ -1,4 +1,0 @@
-1. Format the SD card to FAT32 format, and copy the files under the SD Card Firmware into the SD card.
-2. Insert the SD card into the SD card slot, set the dip switch to SD card boot mode, plug in the network cable (or USB port), and power on.
-4. If USB communication is used, the USB virtual network card driver needs to be installed in advance, and the official host software can be used under normal conditions
-5. If using the Ethernet port, you need to set the IP address. You also need to plug in the JTAG USB port. The default firmware login account is "root" and the password is "analog". Then configure the IP address using "ifconfig eth0 192.168.1.xx". You can use the official host software.
